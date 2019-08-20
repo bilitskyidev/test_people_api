@@ -1,15 +1,17 @@
 from rest_framework import serializers
 import requests
 from people.models import Person, Location
+from abc import ABC, abstractmethod
 
 
-class GetUsersDataFromApi:
-    def __init__(self, first_name=None):
-        self.first_name = first_name
+class GetUsersDataFromApi(ABC):
+    def __init__(self, url=None, params=None):
         self.data = {}
+        self.url = url
+        self.params = params
 
     @staticmethod
-    def get_response(url, params=None):
+    def get_response(url, params):
         response = requests.get(url, params=params)
         if response.status_code == 200:
             return response.json()
@@ -18,7 +20,18 @@ class GetUsersDataFromApi:
                 response.json()['error']['message']
             )
 
-    def form_data_for_person_from_random_user(self, user_data):
+    @abstractmethod
+    def form_data_for_person(self, user_data):
+        raise Exception("You must change this method")
+
+    @abstractmethod
+    def get_data_from_api(self):
+        raise Exception("You must change this method")
+
+
+class RandomUserApiWorker(GetUsersDataFromApi):
+
+    def form_data_for_person(self, user_data):
         gender = user_data["gender"]
         self.data.clear()
         self.data["gender"] = "M" if gender == "male" else "F"
@@ -26,14 +39,13 @@ class GetUsersDataFromApi:
         self.data["last_name"] = user_data["name"]["last"]
         return self.data
 
-    def get_random_user_data(self):
-        url = "https://randomuser.me/api/"
-        resp = self.get_response(url, params={"results": 5})['results']
+    def get_data_from_api(self):
+        resp = self.get_response(self.url, params=self.params)['results']
         for user in resp:
             try:
                 city = user["location"]["city"]
                 location = Location.objects.get_or_create(city=city)[0]
-                self.form_data_for_person_from_random_user(user)
+                self.form_data_for_person(user)
             except KeyError:
                 raise serializers.ValidationError(
                     'Got wrong data from random user api'
@@ -42,7 +54,10 @@ class GetUsersDataFromApi:
             self.data["location"] = location
             Person.objects.create(**self.data)
 
-    def form_data_for_person_from_uinames(self, user_data):
+
+class UINamesApiWorker(GetUsersDataFromApi):
+
+    def form_data_for_person(self, user_data):
         gender = user_data["gender"]
         self.data.clear()
         self.data["gender"] = "M" if gender == "male" else "F"
@@ -50,14 +65,13 @@ class GetUsersDataFromApi:
         self.data["last_name"] = user_data["surname"]
         return self.data
 
-    def get_uinames_user_data(self):
-        url = "https://uinames.com/api/"
-        resp = self.get_response(url, params={"amount": 10})
+    def get_data_from_api(self):
+        resp = self.get_response(self.url, params=self.params)
         for user in resp:
             try:
                 region = user["region"]
                 location = Location.objects.get_or_create(region=region)[0]
-                self.form_data_for_person_from_uinames(user)
+                self.form_data_for_person(user)
             except KeyError:
                 raise serializers.ValidationError(
                     'Got wrong data from uinames api'
@@ -65,7 +79,10 @@ class GetUsersDataFromApi:
             self.data["location"] = location
             Person.objects.create(**self.data)
 
-    def form_data_for_person_from_jsonplaceholder(self, user_data):
+
+class JsonPlaceholderApiWorker(GetUsersDataFromApi):
+
+    def form_data_for_person(self, user_data):
         url = "https://api.genderize.io/"
         self.data.clear()
         full_name = user_data["name"].split(" ")
@@ -81,14 +98,13 @@ class GetUsersDataFromApi:
         self.data["gender"] = "M" if gender == "male" else "F"
         return self.data
 
-    def get_jsonplaceholder_user_data(self):
-        url = "http://jsonplaceholder.typicode.com/users"
-        resp = self.get_response(url)
+    def get_data_from_api(self):
+        resp = self.get_response(self.url, params=self.params)
         for user in resp:
             try:
                 city = user["address"]["city"]
                 location = Location.objects.get_or_create(city=city)[0]
-                self.form_data_for_person_from_jsonplaceholder(user)
+                self.form_data_for_person(user)
             except KeyError:
                 raise serializers.ValidationError(
                     'Got wrong data from jsonplaceholder api'
@@ -96,7 +112,26 @@ class GetUsersDataFromApi:
             self.data["location"] = location
             Person.objects.create(**self.data)
 
-    def get_persons_data_from_apies(self):
-        self.get_random_user_data()
-        self.get_uinames_user_data()
-        self.get_jsonplaceholder_user_data()
+
+class ApiWorker:
+    def __init__(self, api_worker=None, many=False):
+        self.api_worker = api_worker
+        self.many = many
+
+    def get_data(self):
+        if self.many:
+            for worker in self.api_worker:
+                worker.get_data_from_api()
+        else:
+            self.api_worker.get_data_from_api()
+
+
+def get_users_data_from_apies():
+    api_workers = [
+        RandomUserApiWorker(url='https://randomuser.me/api/',
+                                     params={'results': 5}),
+        UINamesApiWorker(url='https://uinames.com/api/',
+                                  params={'amount': 10}),
+        JsonPlaceholderApiWorker(url='http://jsonplaceholder.typicode.com/users')
+    ]
+    ApiWorker(api_worker=api_workers, many=True).get_data()
