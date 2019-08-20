@@ -5,7 +5,7 @@ from abc import ABC, abstractmethod
 
 
 class GetUsersDataFromApi(ABC):
-    def __init__(self, url=None, params=None):
+    def __init__(self, url, params=None):
         self.data = {}
         self.url = url
         self.params = params
@@ -114,7 +114,7 @@ class JsonPlaceholderApiWorker(GetUsersDataFromApi):
 
 
 class ApiWorker:
-    def __init__(self, api_worker=None, many=False):
+    def __init__(self, api_worker, many=False):
         self.api_worker = api_worker
         self.many = many
 
@@ -128,10 +128,8 @@ class ApiWorker:
 
 def get_users_data_from_apies():
     api_workers = [
-        RandomUserApiWorker(url='https://randomuser.me/api/',
-                                     params={'results': 5}),
-        UINamesApiWorker(url='https://uinames.com/api/',
-                                  params={'amount': 10}),
-        JsonPlaceholderApiWorker(url='http://jsonplaceholder.typicode.com/users')
+        RandomUserApiWorker('https://randomuser.me/api/', params={'results': 5}),
+        UINamesApiWorker('https://uinames.com/api/', params={'amount': 10}),
+        JsonPlaceholderApiWorker('http://jsonplaceholder.typicode.com/users')
     ]
-    ApiWorker(api_worker=api_workers, many=True).get_data()
+    ApiWorker(api_workers, many=True).get_data()
