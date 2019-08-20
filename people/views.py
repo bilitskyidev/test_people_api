@@ -3,7 +3,7 @@ from rest_framework.viewsets import GenericViewSet
 from rest_framework.mixins import ListModelMixin
 from people.serializers import LocationGenderSerializer, GenderLocationSerializer
 from people.models import Location
-from people.service import get_users_data_from_apies
+from people.service import get_users_data_from_apis
 
 
 class LocationPersonCountByGenderViewSet(ListModelMixin, GenericViewSet):
@@ -19,7 +19,7 @@ class LocationPersonCountByGenderViewSet(ListModelMixin, GenericViewSet):
         return queryset
 
     def list(self, request, *args, **kwargs):
-        get_users_data_from_apies()
+        get_users_data_from_apis()
         return super(LocationPersonCountByGenderViewSet, self).list(request, *args, **kwargs)
 
 
