@@ -1,17 +1,19 @@
+from abc import ABC, abstractmethod, abstractstaticmethod
 from rest_framework import serializers
+from typing import List
 import requests
 from people.models import Person, Location
-from abc import ABC, abstractmethod, abstractstaticmethod
 
 
 class GetDataFromApi(ABC):
-    def __init__(self, params=None):
+    """Interface for creating service, that work with API"""
+    def __init__(self, params: dict = None):
         self.url = None
-        self.data = {}
         self.params = params
 
     @staticmethod
-    def get_response(url, params):
+    def get_response(url, params) -> dict or Exception:
+        """Creating request to api and check response status"""
         response = requests.get(url, params=params)
         if response.status_code == 200:
             return response.json()
@@ -21,180 +23,188 @@ class GetDataFromApi(ABC):
             )
 
     @abstractstaticmethod
-    def validate_response_data(resp):
+    def validate_response_data(resp: dict):
         pass
 
-    def _get_valid_response_data(self):
+    def _get_valid_response_data(self) -> dict or str:
+        """Get response data from API and validate format of it"""
         resp = self.get_response(self.url, params=self.params)
         data = self.validate_response_data(resp)
         return data
 
     @abstractmethod
     def form_data_for_person(self, user_data):
+        """Format data in dict for creating Person object"""
         raise Exception("You must change this method")
 
     @abstractmethod
     def get_data_from_api(self):
+        """Get valid response data and creating Person objects"""
         raise Exception("You must change this method")
 
 
 class RandomUserApiWorker(GetDataFromApi):
+    """Service for working with RandomUser Api"""
 
     def __init__(self, **kwargs):
         super(RandomUserApiWorker, self).__init__(**kwargs)
         self.url = 'https://randomuser.me/api/'
 
     @staticmethod
-    def validate_response_data(data):
+    def validate_response_data(data: dict) -> dict:
         try:
             data = data["results"]
         except KeyError:
             raise serializers.ValidationError(
-                "Wrong form data in response,"
+                "Wrong form data in response RandomUserApi,"
                 "'results' not found"
             )
         valid_data = {"gender", "location", "name"}
-        if len(valid_data & set(data[0].keys())) == 3:
-            if len({"city"} & set(data[0]["location"].keys())) != 1:
-                raise serializers.ValidationError("Wrong form data in response,"
-                                                  "'city' not found")
-            elif len({"first", "last"} & set(data[0]["name"].keys())) != 2:
-                raise serializers.ValidationError(
-                    "Wrong form data in response,"
-                    "{} not found".format(
-                        {"first", "last"} & ({"first", "last"} ^ set(data[0]["name"].keys()))))
-        else:
+        valid_data_name = {"first", "last"}
+        if valid_data & set(data[0].keys()) != valid_data:
             raise serializers.ValidationError(
-                    "Wrong form data in response,"
-                    "{} not found".format(
-                        valid_data & (valid_data ^ set(data[0].keys()))))
+                "Wrong form data in response RandomUserApi,"
+                "{} not found".format(
+                    valid_data & (valid_data ^ set(data[0].keys()))))
+        if not data[0]["location"].get("city", None):
+            raise serializers.ValidationError(
+                "Wrong form data in response RandomUserApi,"
+                "'city' not found")
+        if valid_data_name & set(data[0]["name"].keys()) != valid_data_name:
+            raise serializers.ValidationError(
+                "Wrong form data in response RandomUserApi,"
+                "{} not found".format(
+                    valid_data_name & (valid_data_name ^ set(data[0]["name"].keys()))))
         return data
 
-    def form_data_for_person(self, user_data):
+    def form_data_for_person(self, user_data: dict) -> dict:
         gender = user_data["gender"]
-        self.data.clear()
-        self.data["gender"] = "M" if gender == "male" else "F"
-        self.data["first_name"] = user_data["name"]["first"]
-        self.data["last_name"] = user_data["name"]["last"]
-        return self.data
+        data = dict()
+        data["gender"] = "M" if gender == "male" else "F"
+        data["first_name"] = user_data["name"]["first"]
+        data["last_name"] = user_data["name"]["last"]
+        return data
 
-    def get_data_from_api(self):
+    def get_data_from_api(self) -> None:
         users = self._get_valid_response_data()
         for user in users:
             city = user["location"]["city"]
             location = Location.objects.get_or_create(city=city)[0]
-            self.form_data_for_person(user)
-            self.data["location"] = location
-            Person.objects.create(**self.data)
+            data = self.form_data_for_person(user)
+            data["location"] = location
+            Person.objects.create(**data)
 
 
 class UINamesApiWorker(GetDataFromApi):
+    """Service for working with UiNames Api"""
     def __init__(self, **kwargs):
         super(UINamesApiWorker, self).__init__(**kwargs)
         self.url = 'https://uinames.com/api/'
 
     @staticmethod
-    def validate_response_data(data):
+    def validate_response_data(data: dict) -> dict:
         valid_data = {"gender", "name", "surname", "region"}
-        if len(valid_data & set(data[0].keys())) == 4:
-            return data
-        else:
+        if valid_data & set(data[0].keys()) != valid_data:
             raise serializers.ValidationError(
-                    "Wrong form data in response,"
+                    "Wrong form data in response UINamesApi,"
                     "{} not found".format(
                         valid_data & (valid_data ^ set(data[0].keys()))))
+        return data
 
-    def form_data_for_person(self, user_data):
+    def form_data_for_person(self, user_data: dict) -> dict:
         gender = user_data["gender"]
-        self.data.clear()
-        self.data["gender"] = "M" if gender == "male" else "F"
-        self.data["first_name"] = user_data["name"]
-        self.data["last_name"] = user_data["surname"]
-        return self.data
+        data = dict()
+        data["gender"] = "M" if gender == "male" else "F"
+        data["first_name"] = user_data["name"]
+        data["last_name"] = user_data["surname"]
+        return data
 
-    def get_data_from_api(self):
+    def get_data_from_api(self) -> None:
         users = self._get_valid_response_data()
         for user in users:
             region = user["region"]
             location = Location.objects.get_or_create(region=region)[0]
-            self.form_data_for_person(user)
-            self.data["location"] = location
-            Person.objects.create(**self.data)
+            data = self.form_data_for_person(user)
+            data["location"] = location
+            Person.objects.create(**data)
 
 
 class GenderizeApi(GetDataFromApi):
+    """Service for working with Genderize Api"""
 
     def __init__(self, **kwargs):
         super(GenderizeApi, self).__init__(**kwargs)
         self.url = "https://api.genderize.io/"
 
-    def form_data_for_person(self, gender):
-        self.data["gender"] = "M" if gender == "male" else "F"
-        return self.data
+    def form_data_for_person(self, gender: str) -> str:
+        data = "M" if gender == "male" else "F"
+        return data
 
     @staticmethod
-    def validate_response_data(data):
+    def validate_response_data(data: dict) -> str:
         try:
             gender = data["gender"]
         except KeyError:
             raise serializers.ValidationError(
-                'Got wrong data from genderize api'
+                "Got wrong data from genderize api 'gender' not found"
             )
         return gender
 
-    def get_data_from_api(self):
+    def get_data_from_api(self) -> dict:
         gender = self._get_valid_response_data()
-        self.form_data_for_person(gender)
-        return self.data
+        data = dict()
+        data["gender"] = self.form_data_for_person(gender)
+        return data
 
 
 class JsonPlaceholderApiWorker(GetDataFromApi):
+    """Service for working with JsonPlaceholder Api"""
 
     def __init__(self, **kwargs):
         super(JsonPlaceholderApiWorker, self).__init__(**kwargs)
         self.url = 'http://jsonplaceholder.typicode.com/users'
 
     @staticmethod
-    def validate_response_data(data):
+    def validate_response_data(data: dict) -> dict:
         valid_data = {"address", "name"}
-        if len(valid_data & set(data[0].keys())) == 2:
-            if len({"city"} & set(data[0]["address"].keys())) == 1:
-                return data
-            else:
-                raise serializers.ValidationError(
-                    "Wrong form data in response,"
-                    "'city' not found")
-        else:
+        if valid_data & set(data[0].keys()) != valid_data:
             raise serializers.ValidationError(
-                    "Wrong form data in response,"
+                    "Wrong form data in response JsonPlaceholderApi,"
                     "{} not found".format(
                         valid_data & (valid_data ^ set(data[0].keys()))))
+        if not data[0]["address"].get("city", None):
+            raise serializers.ValidationError(
+                    "Wrong form data in response JsonPlaceholderApi,"
+                    "'city' not found")
+        return data
 
-    def form_data_for_person(self, user_data):
+    def form_data_for_person(self, user_data: dict) -> dict:
         full_name = user_data["name"].split(" ")
         gender = GenderizeApi(params={"name": full_name[0].lower()}).get_data_from_api()
-        self.data.clear()
-        self.data["first_name"] = full_name[0]
-        self.data["last_name"] = full_name[1]
-        self.data.update(gender)
-        return self.data
+        data = dict()
+        data["first_name"] = full_name[0]
+        data["last_name"] = full_name[1]
+        data.update(gender)
+        return data
 
-    def get_data_from_api(self):
+    def get_data_from_api(self) -> None:
         users = self._get_valid_response_data()
         for user in users:
             city = user["address"]["city"]
             location = Location.objects.get_or_create(city=city)[0]
-            self.form_data_for_person(user)
-            self.data["location"] = location
-            Person.objects.create(**self.data)
+            data = self.form_data_for_person(user)
+            data["location"] = location
+            Person.objects.create(**data)
 
 
 class ApiWorker:
-    def __init__(self, api_worker, many=False):
+    """Service for run Api Workers"""
+    def __init__(self, api_worker: GetDataFromApi or List[GetDataFromApi],
+                 many: bool = False):
         self.api_worker = api_worker
         self.many = many
 
-    def get_data(self):
+    def get_data(self) -> None:
         if self.many:
             for worker in self.api_worker:
                 worker.get_data_from_api()
@@ -202,7 +212,7 @@ class ApiWorker:
             self.api_worker.get_data_from_api()
 
 
-def get_users_data_from_apis():
+def get_users_data_from_apis() -> None:
     api_workers = [
         RandomUserApiWorker(params={'results': 5}),
         UINamesApiWorker(params={'amount': 10}),
