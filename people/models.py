@@ -5,13 +5,8 @@ class Location(models.Model):
     city = models.CharField(max_length=250, blank=True, null=True, unique=True)
     region = models.CharField(max_length=250, blank=True, null=True, unique=True)
 
-    @classmethod
-    def get_location_data(cls):
-        queryset = cls.objects.all()\
-            .annotate()\
-            .values('city', 'region')\
-            .annotate(gender_count=models.Count('person__gender'))\
-            .values('person__gender', 'city', 'gender_count', "region")
+    @staticmethod
+    def form_data(queryset):
         data = [{"M": [], "Total": 0}, {"F": [], "Total": 0}]
         for location in queryset:
             gender = location.pop("person__gender", None)
@@ -22,6 +17,15 @@ class Location(models.Model):
                 data[1][gender].append(location)
                 data[1]["Total"] += location["gender_count"]
         return data
+
+    @classmethod
+    def get_location_data(cls):
+        queryset = cls.objects.all()\
+            .annotate()\
+            .values('city', 'region')\
+            .annotate(gender_count=models.Count('person__gender'))\
+            .values('person__gender', 'city', 'gender_count', "region")
+        return cls.form_data(queryset)
 
 
 class Person(models.Model):

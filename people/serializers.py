@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from people.models import Person, Location
+from people.models import Location
 
 
 class GenderCountByLocationSerializer(serializers.Serializer):

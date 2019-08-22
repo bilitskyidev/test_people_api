@@ -540,3 +540,75 @@ class ApiWorkerGetDataTestCase(ApiWorkerTestCaseMixin):
         with self.assertRaises(serializers.ValidationError):
             service.get_data()
         self.assertEqual(self.worker_with_method.get_data_from_api.call_count, 0)
+
+
+class LocationTestCase(TestCase):
+
+    def setUp(self) -> None:
+        self.fixture = [
+            {
+                "person__gender": "M",
+                'city': 'Wisokyburgh',
+                'region': None,
+                'gender_count': 4
+            },
+            {
+                "person__gender": "M",
+                'city': None,
+                'region': 'Bosnia and Herzegovina',
+                'gender_count': 2
+            },
+            {
+                "person__gender": "F",
+                'city': 'wagga wagga',
+                'region': None,
+                'gender_count': 1
+            },
+            {
+                "person__gender": "F",
+                'city': 'salisbury',
+                'region': None,
+                'gender_count': 1
+            },
+        ]
+        self.format_data = [
+            {
+                "M": [
+                    {
+                        'city': 'Wisokyburgh',
+                        'region': None,
+                        'gender_count': 4
+                    },
+                    {
+                        'city': None,
+                        'region': 'Bosnia and Herzegovina',
+                        'gender_count': 2
+                    }
+                ],
+                "Total": 6
+            },
+            {
+                "F": [
+                    {
+                        'city': 'wagga wagga',
+                        'region': None,
+                        'gender_count': 1
+                    },
+                    {
+                        'city': 'salisbury',
+                        'region': None,
+                        'gender_count': 1
+                    },
+                ],
+                "Total": 2
+            }
+        ]
+        self.empty_data = [{"M": [], "Total": 0}, {"F": [], "Total": 0}]
+
+    def test_form_data_from_fixture(self):
+        result = Location.form_data(self.fixture)
+        self.assertEqual(result, self.format_data)
+
+    def test_form_empty_data(self):
+        result = Location.form_data([])
+        self.assertEqual(result, self.empty_data)

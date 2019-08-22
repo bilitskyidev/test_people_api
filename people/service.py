@@ -234,7 +234,7 @@ class ApiWorker:
             self.api_worker.get_data_from_api()
 
 
-def get_users_data_from_apis() -> None:
+def get_users_data_from_api() -> None:
     api_workers = [
         RandomUserApiWorker(params={'results': 5}),
         UINamesApiWorker(params={'amount': 10}),
