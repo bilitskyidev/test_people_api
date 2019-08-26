@@ -1,0 +1,17 @@
+{
+  "title": "Schema of response data from UINames API",
+  "type": "array",
+  "definitions": {
+    "person": {
+      "type": "object",
+      "properties": {
+        "address": {
+          "type": "object",
+          "required": ["city"]
+        }
+      },
+      "required": ["name", "address"]
+    }
+  },
+  "items": {"$ref": "#/definitions/person"}
+}

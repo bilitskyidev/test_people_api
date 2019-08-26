@@ -1,0 +1,40 @@
+{
+  "title": "Schema of response data from Random User API",
+  "type": "object",
+  "definitions": {
+    "person": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "object",
+          "properties": {
+            "first": {
+              "type": "string"
+            },
+            "last": {
+              "type": "string"
+            }
+          },
+          "required": ["first", "last"]
+        },
+        "location": {
+          "type": "object",
+          "properties": {
+            "city": {
+                "type": "string"
+            }
+          },
+          "required": ["city"]
+        }
+      },
+      "required": ["name", "location", "gender"]
+    }
+  },
+  "properties": {
+    "results": {
+      "type": "array",
+      "items": {"$ref": "#/definitions/person"}
+    }
+  },
+  "required": ["results"]
+}

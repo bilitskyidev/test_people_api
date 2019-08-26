@@ -40,3 +40,4 @@ class Person(models.Model):
     last_name = models.CharField(max_length=250)
     location = models.ForeignKey(Location, related_name="person",
                                  on_delete=models.CASCADE)
+
