@@ -13,6 +13,7 @@ class GetDataFromApi(ABC):
     def __init__(self, params: dict = None):
         self.url = None
         self.params = params
+        self.api_name = "GetDataFromApi"
 
     @staticmethod
     def get_response(url, params) -> dict or Exception:
@@ -41,7 +42,7 @@ class GetDataFromApi(ABC):
         schema = self.get_api_schema(schema_path)
         if type(data) != type_data:
             raise serializers.ValidationError(
-                "Wrong form data in response {}".format(self.__str__())
+                "Wrong form data in response {}".format(self.api_name)
             )
         try:
             validate(data, schema)
@@ -76,6 +77,7 @@ class RandomUserApiWorker(GetDataFromApi):
         super(RandomUserApiWorker, self).__init__(**kwargs)
         self.url = "https://randomuser.me/api/"
         self.schema_path = "people/api_validator_schema/RandomUserApiSchema"
+        self.api_name = "RandomUser Api"
 
     @staticmethod
     def form_data_for_person(user_data: dict) -> dict:
@@ -95,9 +97,6 @@ class RandomUserApiWorker(GetDataFromApi):
             data["location"] = location
             Person.objects.create(**data)
 
-    def __str__(self):
-        return "RandomUser Api"
-
 
 class UINamesApiWorker(GetDataFromApi):
     """Service for working with UiNames Api"""
@@ -105,6 +104,7 @@ class UINamesApiWorker(GetDataFromApi):
         super(UINamesApiWorker, self).__init__(**kwargs)
         self.url = 'https://uinames.com/api/'
         self.schema_path = "people/api_validator_schema/UINamesApiSchema"
+        self.api_name = "UINames Api"
 
     @staticmethod
     def form_data_for_person(user_data: dict) -> dict:
@@ -124,8 +124,6 @@ class UINamesApiWorker(GetDataFromApi):
             data["location"] = location
             Person.objects.create(**data)
 
-    def __str__(self):
-        return "UINames Api"
 
 class GenderizeApi(GetDataFromApi):
     """Service for working with Genderize Api"""
@@ -134,6 +132,7 @@ class GenderizeApi(GetDataFromApi):
         super(GenderizeApi, self).__init__(**kwargs)
         self.url = "https://api.genderize.io/"
         self.schema_path = "people/api_validator_schema/GenderizeApiSchema"
+        self.api_name = "Genderize Api"
 
     @staticmethod
     def form_data_for_person(gender: str) -> str:
@@ -146,8 +145,6 @@ class GenderizeApi(GetDataFromApi):
         data["gender"] = self.form_data_for_person(gender_data["gender"])
         return data
 
-    def __str__(self):
-        return "Genderize Api"
 
 class JsonPlaceholderApiWorker(GetDataFromApi):
     """Service for working with JsonPlaceholder Api"""
@@ -156,6 +153,7 @@ class JsonPlaceholderApiWorker(GetDataFromApi):
         super(JsonPlaceholderApiWorker, self).__init__(**kwargs)
         self.url = 'http://jsonplaceholder.typicode.com/users'
         self.schema_path = "people/api_validator_schema/JsonPlaceholderApiSchema"
+        self.api_name = "JsonPlaceholder Api"
 
     @staticmethod
     def form_data_for_person(user_data: dict) -> dict:
@@ -176,8 +174,6 @@ class JsonPlaceholderApiWorker(GetDataFromApi):
             data["location"] = location
             Person.objects.create(**data)
 
-    def __str__(self):
-        return "JsonPlaceholder Api"
 
 class ApiWorker:
     """Service for run Api Workers"""
