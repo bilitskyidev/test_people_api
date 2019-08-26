@@ -1,15 +1,16 @@
 from abc import ABC, abstractmethod, abstractstaticmethod
 from typing import List
-import requests
 import json
+import jsonschema
+from jsonschema import validate
+import requests
 from rest_framework import serializers
 from people.models import Person, Location
-from jsonschema import validate
-import jsonschema
 
 
 class GetDataFromApi(ABC):
     """Interface for creating service, that work with API"""
+
     def __init__(self, params: dict = None):
         self.url = None
         self.params = params
@@ -28,6 +29,7 @@ class GetDataFromApi(ABC):
 
     @staticmethod
     def get_api_schema(path):
+        """Open schema file and convert to json"""
         try:
             with open(path, "r") as s:
                 data = s.read()
@@ -39,6 +41,7 @@ class GetDataFromApi(ABC):
 
     def _validate_response_data(self, data: dict or list, type_data: type,
                                 schema_path: str) -> dict or list:
+        """Check response data, it format must match to the scheme"""
         schema = self.get_api_schema(schema_path)
         if type(data) != type_data:
             raise serializers.ValidationError(
@@ -100,6 +103,7 @@ class RandomUserApiWorker(GetDataFromApi):
 
 class UINamesApiWorker(GetDataFromApi):
     """Service for working with UiNames Api"""
+
     def __init__(self, **kwargs):
         super(UINamesApiWorker, self).__init__(**kwargs)
         self.url = 'https://uinames.com/api/'
@@ -158,7 +162,8 @@ class JsonPlaceholderApiWorker(GetDataFromApi):
     @staticmethod
     def form_data_for_person(user_data: dict) -> dict:
         full_name = user_data["name"].split(" ")
-        gender = GenderizeApi(params={"name": full_name[-2].lower()}).get_data_from_api()
+        gender = GenderizeApi(
+            params={"name": full_name[-2].lower()}).get_data_from_api()
         data = dict()
         data["first_name"] = full_name[0]
         data["last_name"] = full_name[1]
@@ -177,6 +182,7 @@ class JsonPlaceholderApiWorker(GetDataFromApi):
 
 class ApiWorker:
     """Service for run Api Workers"""
+
     def __init__(self, api_worker: GetDataFromApi or List[GetDataFromApi]):
         self.api_worker = api_worker
         self.many = True if type(self.api_worker) == list else False
@@ -208,5 +214,5 @@ def get_users_data_from_api() -> None:
         RandomUserApiWorker(params={'results': 5}),
         UINamesApiWorker(params={'amount': 10}),
         JsonPlaceholderApiWorker()
-        ]
+    ]
     ApiWorker(api_workers).get_data()
