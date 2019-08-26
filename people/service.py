@@ -95,6 +95,9 @@ class RandomUserApiWorker(GetDataFromApi):
             data["location"] = location
             Person.objects.create(**data)
 
+    def __str__(self):
+        return "RandomUser Api"
+
 
 class UINamesApiWorker(GetDataFromApi):
     """Service for working with UiNames Api"""
@@ -121,6 +124,8 @@ class UINamesApiWorker(GetDataFromApi):
             data["location"] = location
             Person.objects.create(**data)
 
+    def __str__(self):
+        return "UINames Api"
 
 class GenderizeApi(GetDataFromApi):
     """Service for working with Genderize Api"""
@@ -141,6 +146,8 @@ class GenderizeApi(GetDataFromApi):
         data["gender"] = self.form_data_for_person(gender_data["gender"])
         return data
 
+    def __str__(self):
+        return "Genderize Api"
 
 class JsonPlaceholderApiWorker(GetDataFromApi):
     """Service for working with JsonPlaceholder Api"""
@@ -169,6 +176,8 @@ class JsonPlaceholderApiWorker(GetDataFromApi):
             data["location"] = location
             Person.objects.create(**data)
 
+    def __str__(self):
+        return "JsonPlaceholder Api"
 
 class ApiWorker:
     """Service for run Api Workers"""
