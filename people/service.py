@@ -2,7 +2,6 @@ from abc import ABC, abstractmethod, abstractstaticmethod
 from typing import List
 import json
 import jsonschema
-from jsonschema import validate
 import requests
 from rest_framework import serializers
 from people.models import Person, Location
@@ -15,6 +14,7 @@ class GetDataFromApi(ABC):
         self.url = None
         self.params = params
         self.api_name = "GetDataFromApi"
+        self.schema_path = "path/to/your/schema/for/validate/response/data"
 
     @staticmethod
     def get_response(url, params) -> dict or Exception:
@@ -33,33 +33,33 @@ class GetDataFromApi(ABC):
         try:
             with open(path, "r") as s:
                 data = s.read()
-        except IOError:
+        except FileNotFoundError:
             raise serializers.ValidationError(
                 "Api schema not found, wrong path:{}".format(path)
             )
         return json.loads(data)
 
-    def _validate_response_data(self, data: dict or list, type_data: type,
-                                schema_path: str) -> dict or list:
+    def _validate_response_data(self, data: dict or list,
+                                type_data: type) -> dict or list:
         """Check response data, it format must match to the scheme"""
-        schema = self.get_api_schema(schema_path)
+        schema = self.get_api_schema(self.schema_path)
         if type(data) != type_data:
             raise serializers.ValidationError(
                 "Wrong form data in response {}".format(self.api_name)
             )
         try:
-            validate(data, schema)
+            jsonschema.validate(data, schema)
         except jsonschema.exceptions.ValidationError as e:
             raise serializers.ValidationError(
                 "Wrong form data in response {},"
-                "{}".format(self.__str__(), e.message)
+                "{}".format(self.api_name, e.message)
             )
         return data
 
-    def _get_valid_response_data(self, type_data, schema_path) -> dict or str:
+    def _get_valid_response_data(self, type_data) -> dict or str:
         """Get response data from API and validate format of it"""
         resp = self.get_response(self.url, params=self.params)
-        data = self._validate_response_data(resp, type_data, schema_path)
+        data = self._validate_response_data(resp, type_data)
         return data
 
     @abstractstaticmethod
@@ -92,7 +92,7 @@ class RandomUserApiWorker(GetDataFromApi):
         return data
 
     def get_data_from_api(self) -> None:
-        users = self._get_valid_response_data(dict, self.schema_path)
+        users = self._get_valid_response_data(dict)
         for user in users["results"]:
             city = user["location"]["city"]
             location = Location.objects.get_or_create(city=city)[0]
@@ -120,7 +120,7 @@ class UINamesApiWorker(GetDataFromApi):
         return data
 
     def get_data_from_api(self) -> None:
-        users = self._get_valid_response_data(list, self.schema_path)
+        users = self._get_valid_response_data(list)
         for user in users:
             region = user["region"]
             location = Location.objects.get_or_create(region=region)[0]
@@ -144,7 +144,7 @@ class GenderizeApi(GetDataFromApi):
         return data
 
     def get_data_from_api(self) -> dict:
-        gender_data = self._get_valid_response_data(dict, self.schema_path)
+        gender_data = self._get_valid_response_data(dict)
         data = dict()
         data["gender"] = self.form_data_for_person(gender_data["gender"])
         return data
@@ -171,7 +171,7 @@ class JsonPlaceholderApiWorker(GetDataFromApi):
         return data
 
     def get_data_from_api(self) -> None:
-        users = self._get_valid_response_data(list, self.schema_path)
+        users = self._get_valid_response_data(list)
         for user in users:
             city = user["address"]["city"]
             location = Location.objects.get_or_create(city=city)[0]
