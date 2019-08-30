@@ -19,7 +19,7 @@ class LocationPersonCountByGenderViewSet(ListModelMixin, GenericViewSet):
         return queryset
 
     def list(self, request, *args, **kwargs):
-        # get_users_data_from_api()
+        get_users_data_from_api()
         return super(LocationPersonCountByGenderViewSet, self).list(request, *args, **kwargs)
 
 

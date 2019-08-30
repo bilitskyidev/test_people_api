@@ -1,6 +1,7 @@
 from unittest import TestCase, mock
 from rest_framework import serializers
 import requests
+import jsonschema
 from people.service import *
 from people.models import Location, Person
 
@@ -26,28 +27,87 @@ class GetResponseTestCase(TestCase):
             GetDataFromApi.get_response("test", "test")
 
 
-class RandomUserApiGetValidResponseDataTestCase(TestCase):
+class GetValidResponseDataTestCase(TestCase):
 
     def test_get_valid_response_data_success(self):
         service = RandomUserApiWorker()
         service.get_response = mock.MagicMock(return_value={"test": "test"})
-        service.validate_response_data = mock.MagicMock(return_value={"test": "test"})
-        result = service._get_valid_response_data()
+        service._validate_response_data = mock.MagicMock(return_value={"test": "test"})
+        result = service._get_valid_response_data(dict)
         self.assertEqual(result, {"test": "test"})
 
     def test_get_valid_response_data_failed_get_response(self):
         service = RandomUserApiWorker()
         service.get_response = mock.MagicMock(side_effect=serializers.ValidationError)
-        service.validate_response_data = mock.MagicMock(return_value={"test": "test"})
+        service._validate_response_data = mock.MagicMock(return_value={"test": "test"})
         with self.assertRaises(serializers.ValidationError):
-            service._get_valid_response_data()
+            service._get_valid_response_data(dict)
 
     def test_get_valid_response_data_failed_validate_response_data(self):
         service = RandomUserApiWorker()
         service.get_response = mock.MagicMock(return_value={"test": "test"})
-        service.validate_response_data = mock.MagicMock(side_effect=serializers.ValidationError)
+        service._validate_response_data = mock.MagicMock(side_effect=serializers.ValidationError)
         with self.assertRaises(serializers.ValidationError):
-            service._get_valid_response_data()
+            service._get_valid_response_data(dict)
+
+
+class ValidateResponseDataTestCase(TestCase):
+
+    @mock.patch("jsonschema.validate")
+    def test_validate_response_data_success(self, mock_validate):
+        mock_validate.return_value = None
+        service = RandomUserApiWorker()
+        result = service._validate_response_data({"test": "test"}, dict)
+        self.assertEqual(result, {"test": "test"})
+
+    def test_validate_response_data_failed_schema_not_found(self):
+        service = RandomUserApiWorker()
+        service.get_api_schema.side_effect = serializers.ValidationError
+        with self.assertRaises(serializers.ValidationError):
+            service._validate_response_data({"test": "test"}, dict)
+
+    def test_validate_response_data_failed_wrong_type(self):
+        service = RandomUserApiWorker()
+        with self.assertRaises(serializers.ValidationError):
+            service._validate_response_data({"test": "test"}, list)
+
+    @mock.patch("jsonschema.validate")
+    def test_validate_response_data_failed_validate_error(self, mock_validate):
+        message = "wrong format response data"
+        mock_validate.side_effect = jsonschema.exceptions.ValidationError(message)
+        service = RandomUserApiWorker()
+        with self.assertRaises(serializers.ValidationError):
+            service._validate_response_data({"test": "test"}, dict)
+        try:
+            service._validate_response_data({"test": "test"}, dict)
+        except serializers.ValidationError as e:
+            self.assertEqual(e.detail[0], "Wrong form data in response {},"
+                                          "{}".format(service.api_name, message))
+
+
+class GetApiSchemaTestCase(TestCase):
+
+    def test_get_api_schema_success(self):
+        with mock.patch('builtins.open', mock.mock_open(
+                read_data='{"test": "test"}')) as m:
+            service = GetDataFromApi
+            result = service.get_api_schema("test")
+            m.assert_called_once_with("test", 'r')
+            self.assertEqual(result, {"test": "test"})
+
+    @mock.patch("builtins.open")
+    def test_get_api_schema_failed_schema_not_found(self, mock_open):
+        mock_open.side_effect = FileNotFoundError
+        path = "test"
+        service = GetDataFromApi
+        with self.assertRaises(serializers.ValidationError):
+            service.get_api_schema(path)
+        try:
+            service.get_api_schema(path)
+        except serializers.ValidationError as e:
+            self.assertEqual(e.detail[0],
+                             "Api schema not found, wrong path:{}".format(path))
+
 
 
 class RandomUserApiTestCaseMixin(TestCase):
@@ -68,75 +128,12 @@ class RandomUserApiTestCaseMixin(TestCase):
             ]
         }
         self.error_message = lambda x, y: "Wrong form data in response {}," \
-                             "{} not found".format(y, x)
+                             "{}".format(y, x)
         self.form_data = {
             "gender": "M",
             "first_name": "test",
             "last_name": "test"
         }
-
-
-class RandomUserApiValidateResponseDataTestCase(RandomUserApiTestCaseMixin):
-
-    def test_validate_response_data_success(self):
-        service = RandomUserApiWorker
-        result = service.validate_response_data(self.data)
-        self.assertEqual(result, self.data["results"])
-
-    def test_validate_response_data_failed_results_not_found(self):
-        service = RandomUserApiWorker
-        try:
-            service.validate_response_data({})
-        except serializers.ValidationError as e:
-            self.assertEqual(e.detail[0], self.error_message("results", "RandomUserApi"))
-
-    def test_validate_response_data_failed_gender_not_found(self):
-        service = RandomUserApiWorker
-        self.data["results"][0].pop("gender")
-        try:
-            service.validate_response_data(self.data)
-        except serializers.ValidationError as e:
-            self.assertEqual(e.detail[0], self.error_message({"gender"}, "RandomUserApi"))
-
-    def test_validate_response_data_failed_location_not_found(self):
-        service = RandomUserApiWorker
-        self.data["results"][0].pop("location")
-        try:
-            service.validate_response_data(self.data)
-        except serializers.ValidationError as e:
-            self.assertEqual(e.detail[0], self.error_message({"location"}, "RandomUserApi"))
-
-    def test_validate_response_data_failed_name_not_found(self):
-        service = RandomUserApiWorker
-        self.data["results"][0].pop("name")
-        try:
-            service.validate_response_data(self.data)
-        except serializers.ValidationError as e:
-            self.assertEqual(e.detail[0], self.error_message({"name"}, "RandomUserApi"))
-
-    def test_validate_response_data_failed_city_not_found(self):
-        service = RandomUserApiWorker
-        self.data["results"][0]["location"].pop("city")
-        try:
-            service.validate_response_data(self.data)
-        except serializers.ValidationError as e:
-            self.assertEqual(e.detail[0], self.error_message("city", "RandomUserApi"))
-
-    def test_validate_response_data_failed_first_not_found(self):
-        service = RandomUserApiWorker
-        self.data["results"][0]["name"].pop("first")
-        try:
-            service.validate_response_data(self.data)
-        except serializers.ValidationError as e:
-            self.assertEqual(e.detail[0], self.error_message({"first"}, "RandomUserApi"))
-
-    def test_validate_response_data_failed_last_not_found(self):
-        service = RandomUserApiWorker
-        self.data["results"][0]["name"].pop("last")
-        try:
-            service.validate_response_data(self.data)
-        except serializers.ValidationError as e:
-            self.assertEqual(e.detail[0], self.error_message({"last"}, "RandomUserApi"))
 
 
 class RandomUserApiFormDataForPerson(RandomUserApiTestCaseMixin):
@@ -168,7 +165,7 @@ class RandomUserApiGetDataFromApiTestCase(RandomUserApiTestCaseMixin):
         self.data['results'] = self.data['results'] * count
         service = RandomUserApiWorker()
         service._get_valid_response_data = mock.MagicMock(
-            return_value=self.data["results"]
+            return_value=self.data
         )
         service.form_data_for_person = mock.MagicMock(
             return_value=self.form_data
@@ -209,50 +206,6 @@ class UINamesApiTestCaseMixin(RandomUserApiTestCaseMixin):
                 "surname": "test"
             },
         ]
-
-
-class UINamesApiValidateResponseDataTestCase(UINamesApiTestCaseMixin):
-
-    def test_validate_response_data_success(self):
-        service = UINamesApiWorker
-        result = service.validate_response_data(self.data)
-        self.assertEqual(result, self.data)
-
-    def test_validate_response_data_failed_gender_not_found(self):
-        self.data[0].pop("gender")
-        service = UINamesApiWorker
-        try:
-            service.validate_response_data(self.data)
-        except serializers.ValidationError as e:
-            self.assertEqual(e.detail[0], self.error_message({"gender"},
-                                                             "UINamesApi"))
-
-    def test_validate_response_data_failed_region_not_found(self):
-        self.data[0].pop("region")
-        service = UINamesApiWorker
-        try:
-            service.validate_response_data(self.data)
-        except serializers.ValidationError as e:
-            self.assertEqual(e.detail[0], self.error_message({"region"},
-                                                             "UINamesApi"))
-
-    def test_validate_response_data_failed_name_not_found(self):
-        self.data[0].pop("name")
-        service = UINamesApiWorker
-        try:
-            service.validate_response_data(self.data)
-        except serializers.ValidationError as e:
-            self.assertEqual(e.detail[0], self.error_message({"name"},
-                                                             "UINamesApi"))
-
-    def test_validate_response_data_failed_surname_not_found(self):
-        self.data[0].pop("surname")
-        service = UINamesApiWorker
-        try:
-            service.validate_response_data(self.data)
-        except serializers.ValidationError as e:
-            self.assertEqual(e.detail[0], self.error_message({"surname"},
-                                                             "UINamesApi"))
 
 
 class UINamesApiFormDataForPerson(UINamesApiTestCaseMixin):
@@ -313,22 +266,6 @@ class UINamesApiGetDataFromApiTestCase(UINamesApiTestCaseMixin):
         self.assertEqual(mock_location.call_count, 0)
 
 
-class GenderizeApiValidateResponseDataTestCase(RandomUserApiTestCaseMixin):
-
-    def test_validate_response_data_success(self):
-        service = GenderizeApi
-        result = service.validate_response_data({"gender": "A"})
-        self.assertEqual(result, "A")
-
-    def test_validate_response_data_failed_gender_not_found(self):
-        service = GenderizeApi
-        try:
-            service.validate_response_data({})
-        except serializers.ValidationError as e:
-            self.assertEqual(e.detail[0], self.error_message("gender",
-                                                             "GenderizeApi"))
-
-
 class GenderizeApiFormDataForPersonTestCase(TestCase):
 
     def test_form_data_for_person_male(self):
@@ -346,7 +283,8 @@ class GenderizeApiGetDataFromApiTestCase(TestCase):
 
     def test_get_data_from_api_success(self):
         service = GenderizeApi()
-        service._get_valid_response_data = mock.MagicMock(return_value=True)
+        service._get_valid_response_data = mock.MagicMock(
+            return_value={"gender": "female"})
         service.form_data_for_person = mock.MagicMock(return_value="F")
         result = service.get_data_from_api()
         self.assertEqual(result, {"gender": "F"})
@@ -372,49 +310,6 @@ class JsonPlaceholderApiTestCaseMixin(RandomUserApiTestCaseMixin):
                 }
             },
         ]
-
-class JsonPlaceholderApiValidateResponseDataTesCase(JsonPlaceholderApiTestCaseMixin):
-
-    def test_validate_respones_data_success(self):
-        service = JsonPlaceholderApiWorker
-        result = service.validate_response_data(self.data)
-        self.assertEqual(result, self.data)
-
-    def test_validate_respones_data_failed_name_not_found(self):
-        self.data[0].pop("name")
-        service = JsonPlaceholderApiWorker
-        try:
-            service.validate_response_data(self.data)
-        except serializers.ValidationError as e:
-            self.assertEqual(e.detail[0], self.error_message({"name"},
-                                                             "JsonPlaceholderApi"))
-
-    def test_validate_respones_data_failed_address_not_found(self):
-        self.data[0].pop("address")
-        service = JsonPlaceholderApiWorker
-        try:
-            service.validate_response_data(self.data)
-        except serializers.ValidationError as e:
-            self.assertEqual(e.detail[0], self.error_message({"address"},
-                                                             "JsonPlaceholderApi"))
-
-    def test_validate_respones_data_failed_city_not_found(self):
-        self.data[0]["address"].pop("city")
-        service = JsonPlaceholderApiWorker
-        try:
-            service.validate_response_data(self.data)
-        except serializers.ValidationError as e:
-            self.assertEqual(e.detail[0], self.error_message("city",
-                                                             "JsonPlaceholderApi"))
-
-    def test_validate_respones_data_failed_name_format(self):
-        self.data[0]["name"] = "test"
-        service = JsonPlaceholderApiWorker
-        try:
-            service.validate_response_data(self.data)
-        except serializers.ValidationError as e:
-            self.assertEqual(e.detail[0], self.error_message("first_name or last_name",
-                                                             "JsonPlaceholderApi"))
 
 
 class JsonPlaceholderApiFormDataForPersonTesCase(JsonPlaceholderApiTestCaseMixin):

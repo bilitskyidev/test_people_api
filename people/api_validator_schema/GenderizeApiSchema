@@ -1,0 +1,5 @@
+{
+  "title": "Schema of response data from Genderize Api",
+  "type": "object",
+  "required": ["gender"]
+}
